@@ -1,1 +1,36 @@
+name: Actualizar Grafico Dolar
 
+on:
+  schedule:
+    - cron: '0 22 * * 1-5' # Se ejecuta de lunes a viernes
+  workflow_dispatch: # Permite ejecutarlo manualmente con el botón
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v3
+
+      - name: Configurar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Instalar librerías
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install requests
+
+      - name: Ejecutar script actualizador
+        run: python dolar_bot.py
+
+      - name: Guardar y subir la pagina web (Commit and Push)
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m "Actualizando grafico del dolar" || echo "No hay cambios nuevos"
+          git push
