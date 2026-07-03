@@ -1,20 +1,21 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Jul  3 12:49:14 2026
-
-@author: haravena
-"""
-
 import yfinance as yf
 import plotly.express as px
 import pandas as pd
+import requests
 
 try:
-    print("[INFO]: Descargando datos de USD/CLP...")
-    datos_dolar = yf.download("CLP=X", start="2026-01-01", progress=False)
+    print("[INFO]: Descargando datos de USD/CLP con máscara de seguridad...")
+    
+    # Parche para evadir el bloqueo de Yahoo Finance en servidores
+    sesion = requests.Session()
+    sesion.headers.update({
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    })
+    
+    datos_dolar = yf.download("CLP=X", start="2026-01-01", progress=False, session=sesion)
     
     if datos_dolar.empty:
-        raise ValueError("No se recibieron datos de la API.")
+        raise ValueError("No se recibieron datos de la API. Yahoo bloqueó el acceso.")
 
     if isinstance(datos_dolar.columns, pd.MultiIndex):
         if 'CLP=X' in datos_dolar.columns.get_level_values(1):
@@ -30,7 +31,6 @@ try:
     datos_dolar['Close'] = pd.to_numeric(datos_dolar['Close']).astype(float)
     datos_dolar = datos_dolar.dropna(subset=['Close'])
 
-    # Creación del dataframe acumulativo para la animación
     lista_marcos = []
     for i in range(len(datos_dolar)):
         sub_df = datos_dolar.iloc[:i+1].copy()
@@ -95,7 +95,6 @@ try:
     fig.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 30
     fig.layout.updatemenus[0].buttons[0].args[1]["transition"]["duration"] = 10
 
-    # CLAVE: Guardar como index.html para GitHub Pages
     fig.write_html("index.html")
     print(f"[ÉXITO]: index.html generado con el último valor: ${ultimo_precio:.2f} CLP")
 
