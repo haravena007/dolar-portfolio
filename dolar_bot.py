@@ -4,9 +4,9 @@ import pandas as pd
 import requests
 
 try:
-    print("[INFO]: Descargando datos de USD/CLP con máscara de seguridad...")
+    print("[INFO]: Descargando datos de USD/CLP...")
     
-    # Parche para evadir el bloqueo de Yahoo Finance en servidores
+    # Parche para evadir el bloqueo de Yahoo Finance
     sesion = requests.Session()
     sesion.headers.update({
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -17,24 +17,38 @@ try:
     if datos_dolar.empty:
         raise ValueError("No se recibieron datos de la API. Yahoo bloqueó el acceso.")
 
-    if isinstance(datos_dolar.columns, pd.MultiIndex):
-        if 'CLP=X' in datos_dolar.columns.get_level_values(1):
-            datos_dolar.columns = datos_dolar.columns.get_level_values(0)
-        else:
-            datos_dolar.columns = [col[0] if isinstance(col, tuple) else col for col in datos_dolar.columns]
-
+    # SOLUCIÓN AL KEYERROR: Forzamos que la fecha sea una columna llamada 'Date'
     datos_dolar = datos_dolar.reset_index()
-    
-    if 'Close' not in datos_dolar.columns and 'Adj Close' in datos_dolar.columns:
-        datos_dolar.rename(columns={'Adj Close': 'Close'}, inplace=True)
+    if 'Date' not in datos_dolar.columns and 'index' in datos_dolar.columns:
+        datos_dolar.rename(columns={'index': 'Date'}, inplace=True)
+    elif datos_dolar.columns[0] != 'Date':
+        # Si el nombre viene raro (ej. MultiIndex), renombramos la primera columna a 'Date'
+        columnas = list(datos_dolar.columns)
+        columnas[0] = 'Date'
+        datos_dolar.columns = columnas
 
-    datos_dolar['Close'] = pd.to_numeric(datos_dolar['Close']).astype(float)
+    # Aplanamos el resto de columnas si vienen en formato MultiIndex
+    if isinstance(datos_dolar.columns, pd.MultiIndex):
+        datos_dolar.columns = [col[0] if isinstance(col, tuple) else col for col in datos_dolar.columns]
+
+    # Buscamos la columna de precio de cierre
+    col_cierre = 'Close' if 'Close' in datos_dolar.columns else ('Adj Close' if 'Adj Close' in datos_dolar.columns else None)
+    if not col_cierre:
+        # Si las columnas vienen con nombres anidados (ej. ('Close', 'CLP=X'))
+        for col in datos_dolar.columns:
+            if 'Close' in str(col):
+                datos_dolar.rename(columns={col: 'Close'}, inplace=True)
+                col_cierre = 'Close'
+                break
+
+    datos_dolar['Close'] = pd.to_numeric(datos_dolar[col_cierre]).astype(float)
     datos_dolar = datos_dolar.dropna(subset=['Close'])
 
+    # Creación del dataframe acumulativo para la animación
     lista_marcos = []
     for i in range(len(datos_dolar)):
         sub_df = datos_dolar.iloc[:i+1].copy()
-        sub_df['Frame_Animacion'] = datos_dolar['Date'].iloc[i].strftime('%Y-%b-%d')
+        sub_df['Frame_Animacion'] = pd.to_datetime(datos_dolar['Date'].iloc[i]).strftime('%Y-%b-%d')
         lista_marcos.append(sub_df)
         
     df_animado = pd.concat(lista_marcos, ignore_index=True)
